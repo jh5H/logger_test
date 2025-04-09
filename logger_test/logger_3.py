@@ -3,6 +3,9 @@ from rclpy.node import Node
 import rclpy
 from geometry_msgs.msg import Twist
 import random
+## CallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 
 
 class LoggerTest(Node):
@@ -16,11 +19,16 @@ class LoggerTest(Node):
         self.speed_limit = 0.5
         self.temp = 0.0
 
+        re_cb_group = ReentrantCallbackGroup()
+        mu_cb_group_1 = MutuallyExclusiveCallbackGroup()
+        mu_cb_group_2 = MutuallyExclusiveCallbackGroup()
+        
+
         # subscription of ROS2
-        self.cmd_sub_ = self.create_subscription(Twist, '/cmd_vel', self.cmd_callback, 10)
+        self.cmd_sub_ = self.create_subscription(Twist, '/cmd_vel', self.cmd_callback, 10, callback_group=re_cb_group)
         # timer of ROS2
-        self.timer_1 = self.create_timer(self.period, self.timer_callback)
-        self.timer_2 = self.create_timer(0.001, self.speed_camera_callback)
+        self.timer_1 = self.create_timer(self.period, self.timer_callback, callback_group=re_cb_group)
+        self.timer_2 = self.create_timer(5, self.speed_camera_callback, re_cb_group)
         
     def cmd_callback(self, data):
         self.current_linear = data.linear.x
@@ -51,10 +59,12 @@ class LoggerTest(Node):
 
 def main(args=None):
 
-    
     rclpy.init(args=args)
     node = LoggerTest()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    # rclpy.spin(node)
+    executor.spin()
     node.destroy_node()
     rclpy.shutdown()
 
